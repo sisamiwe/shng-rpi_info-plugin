@@ -30,22 +30,16 @@ from lib.item import Items
 
 from .webif import WebInterface
 
+import subprocess
+from datetime import timedelta
 
-# If a needed package is imported, which might be not installed in the Python environment,
-# add it to a requirements.txt file within the plugin's directory
 
-
-class SamplePlugin(SmartPlugin):
+class RPi_Info(SmartPlugin):
     """
-    Main class of the Plugin. Does all plugin specific stuff and provides
-    the update functions for the items
-
-    HINT: Please have a look at the SmartPlugin class to see which
-    class properties and methods (class variables and class functions)
-    are already available!
+    Main class of the Plugin. Does all plugin specific stuff and provides the update functions for the items
     """
 
-    PLUGIN_VERSION = '1.0.0'    # (must match the version specified in plugin.yaml), use '1.0.0' for your initial plugin Release
+    PLUGIN_VERSION = '1.0.A'
 
     def __init__(self, sh):
         """
@@ -54,30 +48,20 @@ class SamplePlugin(SmartPlugin):
         If you need the sh object at all, use the method self.get_sh() to get it. There should be almost no need for
         a reference to the sh object any more.
 
-        Plugins have to use the new way of getting parameter values:
-        use the SmartPlugin method get_parameter_value(parameter_name). Anywhere within the Plugin you can get
-        the configured (and checked) value for a parameter by calling self.get_parameter_value(parameter_name). It
-        returns the value in the datatype that is defined in the metadata.
         """
 
         # Call init code of parent class (SmartPlugin)
         super().__init__()
 
-        # get the parameters for the plugin (as defined in metadata plugin.yaml):
+        self.alive = False
+
         try:
-            # webif_pagelength should be included in all plugins using a web interface
-            # It is used to overwrite the default max number of entries per page in the tables
             self.webif_pagelength = self.get_parameter_value('webif_pagelength')
-            # self.param1 = self.get_parameter_value('param1')
+            self.poll_cycle = self.get_parameter_value('poll_cycle')
         except KeyError as e:
             self.logger.critical("Plugin '{}': Inconsistent plugin (invalid metadata definition: {} not defined)".format(self.get_shortname(), e))
             self._init_complete = False
             return
-
-        # cycle time in seconds, only needed, if hardware/interface needs to be
-        # polled for value changes by adding a scheduler entry in the run method of this plugin
-        # (maybe you want to make it a plugin parameter?)
-        self._cycle = 60
 
         # Initialization code goes here
 
@@ -85,12 +69,7 @@ class SamplePlugin(SmartPlugin):
         #   self._init_complete = False
         #   return
 
-        # if plugin should start even without web interface
         self.init_webinterface(WebInterface)
-        # if plugin should not start without web interface
-        # if not self.init_webinterface():
-        #     self._init_complete = False
-
         return
 
     def run(self):
@@ -99,11 +78,9 @@ class SamplePlugin(SmartPlugin):
         """
         self.logger.debug("Run method called")
         # setup scheduler for device poll loop   (disable the following line, if you don't need to poll the device. Rember to comment the self_cycle statement in __init__ as well)
-        self.scheduler_add('poll_device', self.poll_device, cycle=self._cycle)
+        self.scheduler_add('poll_device', self.poll_device, cycle=self.poll_cycle)
 
         self.alive = True
-        # if you need to create child threads, do not make them daemon = True!
-        # They will not shutdown properly. (It's a python bug)
 
     def stop(self):
         """
@@ -126,13 +103,12 @@ class SamplePlugin(SmartPlugin):
                         with the item, caller, source and dest as arguments and in case of the knx plugin the value
                         can be sent to the knx with a knx write function within the knx plugin.
         """
-        if self.has_iattr(item.conf, 'foo_itemtag'):
+        if self.has_iattr(item.conf, 'rpiinfo_func'):
             self.logger.debug(f"parse item: {item}")
+            self._itemlist.append(item)
 
-        # todo
-        # if interesting item for sending values:
-        #   self._itemlist.append(item)
-        #   return self.update_item
+        elif self.has_iattr(item.conf, 'rpiinfo_sys'):
+            return self.update_item
 
     def parse_logic(self, logic):
         """
@@ -187,3 +163,72 @@ class SamplePlugin(SmartPlugin):
         #     # the source should be included when updating the the value:
         #     item(device_value, self.get_shortname(), source=device_source_id)
         pass
+
+    @staticmethod
+    def _call(cmd, arg):
+        process = subprocess.Popen([cmd, arg], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+        return stdout.decode('utf-8').strip()
+
+    def uptime2(self):
+        with open("/proc/uptime", "r") as f:
+            upt, __, __ = f.read().partition(' ')
+        return int(float(upt))
+
+    def uptime(self):
+        with open('/proc/uptime', 'r') as f:
+            uptime_seconds = float(f.readline().split()[0])
+            return int(uptime_seconds)
+
+    def uptime_string(self):
+        time_str = str(timedelta(seconds=self.uptime()))
+        return time_str
+
+    def temp(self):
+        with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+            tmp = int(float(f.read().strip()) / 100) / 10
+        return tmp
+
+    def frequency(self):
+        __, __, frq = self._call('vcgencmd', 'measure_clock arm').strip().partition('=')
+        return int(int(frq) / 1000000)
+
+    def _flags(self):
+        __, __, thr = self._call('vcgencmd', 'get_throttled').strip().partition('=')
+        return int(thr, 16)
+
+    def under_voltage(self, flags):
+        return bool(flags >> 0 & 1)
+
+    def frequency_capped(self, flags):
+        return bool(flags >> 1 & 1)
+
+    def throttled(self, flags):
+        return bool(flags >> 2 & 1)
+
+    def temp_limit(self, flags):
+        return bool(flags >> 3 & 1)
+
+    def under_voltage_last_reboot(self, flags):
+        return bool(flags >> 16 & 1)
+
+    def throttled_last_reboot(self, flags):
+        return bool(flags >> 17 & 1)
+
+    def frequency_capped_last_reboot(self, flags):
+        return bool(flags >> 18 & 1)
+
+    def temp_limit_last_reboot(self, flags):
+        return bool(flags >> 19 & 1)
+
+
+throttled = {
+    0: 'Under-voltage!',
+    1: 'ARM frequency capped!',
+    2: 'Currently throttled!',
+    3: 'Soft temperature limit active',
+    16: 'Under-voltage has occurred since last reboot.',
+    17: 'Throttling has occurred since last reboot.',
+    18: 'ARM frequency capped has occurred since last reboot.',
+    19: 'Soft temperature limit has occurred'
+}
