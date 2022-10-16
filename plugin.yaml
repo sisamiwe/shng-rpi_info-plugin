@@ -45,7 +45,7 @@ parameters:
                  -1 shows all table entries on one page.'
 
     poll_cycle:
-        type: num
+        type: int
         default: 300
         description:
             de: 'Demo Parameter mit Gültigkeitsliste und Standardwert'
@@ -61,16 +61,16 @@ item_attributes:
         valid_list:
             - 'uptime'
             - 'uptime_string'
-            - 'cpu_temp'
+            - 'cpu_temperature'
             - 'frequency'
             - 'under_voltage'
             - 'frequency_capped'
             - 'throttled'
-            - 'temp_limit'
+            - 'temperature_limit'
             - 'under_voltage_last_reboot'
             - 'throttled_last_reboot'
             - 'frequency_capped_last_reboot'
-            - 'temp_limit_last_reboot'
+            - 'temperature_limit_last_reboot'
 
     rpiinfo_sys:
         type: str
@@ -85,15 +85,148 @@ item_attributes:
             en:
                 - 'Rereads rpi data'
 
-item_structs: NONE
-    # Definition of item-structure templates for this plugin (enter 'item_structs: NONE', if section should be empty)
+item_structs:
+    rpi_info:
+        name: Struct für Information über den RPi
+
+        update_rpi_info:
+            type: bool
+            rpiinfo_sys: update
+
+        temperature:
+            type: num
+            rpiinfo_func: cpu_temperature
+            visu_acl: ro
+
+        uptime:
+            type: num
+            rpiinfo_func: uptime
+            visu_acl: ro
+
+        uptime_str:
+            type: str
+            rpiinfo_func: uptime_string
+            visu_acl: ro
+
+        frequency:
+            type: num
+            rpiinfo_func: frequency
+            visu_acl: ro
+
+        under_voltage:
+            type: bool
+            rpiinfo_func: under_voltage
+            visu_acl: ro
+
+        frequency_capped:
+            type: bool
+            rpiinfo_func: frequency_capped
+            visu_acl: ro
+
+        throttled:
+            type: bool
+            rpiinfo_func: throttled
+            visu_acl: ro
+
+        temperature_limit:
+            type: bool
+            rpiinfo_func: temperature_limit
+            visu_acl: ro
+
+        under_voltage_last_reboot:
+            type: bool
+            rpiinfo_func: under_voltage_last_reboot
+            visu_acl: ro
+
+        frequency_capped_last_reboot:
+            type: bool
+            rpiinfo_func: frequency_capped_last_reboot
+            visu_acl: ro
+
+        throttled_last_reboot:
+            type: bool
+            rpiinfo_func: throttled_last_reboot
+            visu_acl: ro
+
+        temperature_limit_last_reboot:
+            type: bool
+            rpiinfo_func: temperature_limit_last_reboot
+            visu_acl: ro
 
 item_attribute_prefixes: NONE
-    # Definition of item attributes that only have a common prefix (enter 'item_attribute_prefixes: NONE' or ommit this section, if section should be empty)
-    # NOTE: This section should only be used, if really nessesary (e.g. for the stateengine plugin)
 
-plugin_functions: NONE
-    # Definition of plugin functions defined by this plugin (enter 'plugin_functions: NONE', if section should be empty)
+plugin_functions:
+    uptime:
+        type: int
+        description:
+            de: 'Liefert für das angegebene Item und die Parameter das Abfrageergebnis zurück'
+            en: 'Return the database request result for the given item and parameters'
+
+    uptime_str:
+        type: str
+        description:
+            de: 'Liefert für das angegebene Item und die Parameter das Abfrageergebnis zurück'
+            en: 'Return the database request result for the given item and parameters'
+
+    cpu_temp:
+        type: num
+        description:
+            de: 'Deutsche Beschreibung der Funktion'
+            en: 'English description of the function'
+
+    frequency:
+        type: int
+        description:
+            de: 'Deutsche Beschreibung der Funktion'
+            en: 'English description of the function'
+
+    under_voltage:
+        type: bool
+        description:
+            de: 'Deutsche Beschreibung der Funktion'
+            en: 'English description of the function'
+
+    frequency_capped:
+        type: bool
+        description:
+            de: 'Deutsche Beschreibung der Funktion'
+            en: 'English description of the function'
+
+    throttled:
+        type: bool
+        description:
+            de: 'Deutsche Beschreibung der Funktion'
+            en: 'English description of the function'
+
+    temperature_limit:
+        type: bool
+        description:
+            de: 'Deutsche Beschreibung der Funktion'
+            en: 'English description of the function'
+
+    under_voltage_last_reboot:
+        type: bool
+        description:
+            de: 'Deutsche Beschreibung der Funktion'
+            en: 'English description of the function'
+
+    throttled_last_reboot:
+        type: bool
+        description:
+            de: 'Deutsche Beschreibung der Funktion'
+            en: 'English description of the function'
+
+    frequency_capped_last_reboot:
+        type: bool
+        description:
+            de: 'Deutsche Beschreibung der Funktion'
+            en: 'English description of the function'
+
+    temperature_limit_last_reboot:
+        type: bool
+        description:
+            de: 'Deutsche Beschreibung der Funktion'
+            en: 'English description of the function'
 
 logic_parameters: NONE
     # Definition of logic parameters defined by this plugin (enter 'logic_parameters: NONE', if section should be empty)
