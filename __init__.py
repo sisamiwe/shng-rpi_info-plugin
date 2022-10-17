@@ -54,15 +54,16 @@ class RPi_Info(SmartPlugin):
         # Call init code of parent class (SmartPlugin)
         super().__init__()
 
-        self.alive = False
         self._item_dict = {}
         self._flags_value = None
         self._cpu_info = None
-        self.suspended = False
         self._cyclic_update_active = False
+        self._rpi_model = None
+        self.suspended = False
+        self.alive = False
 
         # check if shNG is running on Raspberry Pi
-        if not self._is_raspberrypi():
+        if not self._is_rpi():
             self.logger.error(f"Plugin '{self.get_shortname()}': Plugin just works with Raspberry Pi or equivalent.")
             self._init_complete = False
             return
@@ -114,14 +115,6 @@ class RPi_Info(SmartPlugin):
 
         elif self.has_iattr(item.conf, 'rpiinfo_sys'):
             return self.update_item
-
-    def parse_logic(self, logic):
-        """
-        Default plugin parse_logic method
-        """
-        if 'xxx' in logic.conf:
-            # self.function(logic['name'])
-            pass
 
     def update_item(self, item, caller=None, source=None, dest=None):
         """
@@ -235,7 +228,7 @@ class RPi_Info(SmartPlugin):
             self._cpu_info = lib.cpuinfo._get_cpu_info_internal()
         return self._cpu_info
 
-    def _get_rpi_model(self):
+    def _get_rpi_model_by_revision_raw(self):
         try:
             revision_raw = self._get_cpuinfo().get('revision_raw', None)
         except Exception:
@@ -257,48 +250,66 @@ class RPi_Info(SmartPlugin):
             if model_info:
                 return model_info.get('ram', None)
 
-    """
-    def get_ostype():
-        pf = platform.system().lower()
-
-        if pf == 'linux':
-            os_release = read_linuxinfo()
-            if os_release == {}:
-                return pf
-            return os_release.get('ID', 'linux')
-        else:
-            return pf
-    """
-
-    @staticmethod
-    def _is_raspberrypi():
+    def _get_rpi_sn(self):
         try:
-            with open('/sys/firmware/devicetree/base/model', 'r') as m:
-                if 'raspberry pi' in m.read().lower():
-                    return True
+            with open('/sys/firmware/devicetree/base/serial-number', 'r') as m:
+                _rpi_sn = m.read().strip()
         except Exception:
             pass
-        return False
+        else:
+            return _rpi_sn
+
+    def _get_rpi_model(self):
+        try:
+            with open('/sys/firmware/devicetree/base/model', 'r') as m:
+                _rpi_model = m.read().strip()
+        except Exception:
+            self._rpi_model = False
+            pass
+        else:
+            if 'raspberry pi' in _rpi_model.lower():
+                self._rpi_model = _rpi_model
+            else:
+                self._rpi_model = False
+
+    def _is_rpi(self):
+        if self._rpi_model is None:
+            self._get_rpi_model()
+
+        return True if self._rpi_model else False
 
     @property
     def item_list(self):
         return list(self._item_dict.keys())
 
     def suspend(self, state: bool = False):
+        """
+        Will pause value evaluation of plugin
+        """
+
         if state:
-            self.logger.debug("Suspend method called, queries to database will not be made.")
+            self.logger.info("Plugins suspended. No information about RPi will be gathered.")
             self.suspended = True
+            self._clear_queue()
         else:
-            self.logger.debug("Activate method called, queries to database will be resumed")
+            self.logger.info("Plugin suspension cancelled. Gathering of information about RPi will be resumed.")
             self.suspended = False
 
     @property
+    def rpi_model_by_revision_raw(self):
+        return self._get_rpi_model_by_revision_raw()
+
+    @property
     def rpi_model(self):
-        return self._get_rpi_model()
+        return self._rpi_model
 
     @property
     def rpi_ram(self):
         return self._get_rpi_ram()
+
+    @property
+    def rpi_sn(self):
+        return self._get_rpi_sn()
 
     @property
     def log_level(self):

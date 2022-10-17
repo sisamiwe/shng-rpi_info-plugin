@@ -46,10 +46,10 @@ parameters:
 
     poll_cycle:
         type: int
-        default: 300
+        default: 120
         description:
-            de: 'Demo Parameter mit Gültigkeitsliste und Standardwert'
-            en: 'Demonstration parameter with valid-list and default value'
+            de: 'Zyklus, in dem die Informationen abgefragt werden sollen.'
+            en: 'Poll cycle of information.'
 
 
 item_attributes:
@@ -103,6 +103,12 @@ item_structs:
             rpiinfo_func: uptime
             visu_acl: ro
 
+            text:
+                type: str
+                eval: str(datetime.timedelta(seconds=value)) if value else None
+                eval_trigger: ..
+                visu_acl: ro
+
         uptime_str:
             type: str
             rpiinfo_func: uptime_string
@@ -153,6 +159,81 @@ item_structs:
             rpiinfo_func: temperature_limit_last_reboot
             visu_acl: ro
 
+    rpi_info_db:
+        name: Struct für Information über den RPi
+
+        update_rpi_info:
+            type: bool
+            rpiinfo_sys: update
+
+        temperature:
+            type: num
+            rpiinfo_func: cpu_temperature
+            database: true
+            visu_acl: ro
+
+        uptime:
+            type: num
+            rpiinfo_func: uptime
+            visu_acl: ro
+
+            text:
+                type: str
+                eval: str(datetime.timedelta(seconds=value)) if value else None
+                eval_trigger: ..
+                visu_acl: ro
+
+        uptime_str:
+            type: str
+            rpiinfo_func: uptime_string
+            visu_acl: ro
+
+        frequency:
+            type: num
+            rpiinfo_func: frequency
+            database: true
+            visu_acl: ro
+
+        under_voltage:
+            type: bool
+            rpiinfo_func: under_voltage
+            database: true
+            visu_acl: ro
+
+        frequency_capped:
+            type: bool
+            rpiinfo_func: frequency_capped
+            visu_acl: ro
+
+        throttled:
+            type: bool
+            rpiinfo_func: throttled
+            visu_acl: ro
+
+        temperature_limit:
+            type: bool
+            rpiinfo_func: temperature_limit
+            visu_acl: ro
+
+        under_voltage_last_reboot:
+            type: bool
+            rpiinfo_func: under_voltage_last_reboot
+            visu_acl: ro
+
+        frequency_capped_last_reboot:
+            type: bool
+            rpiinfo_func: frequency_capped_last_reboot
+            visu_acl: ro
+
+        throttled_last_reboot:
+            type: bool
+            rpiinfo_func: throttled_last_reboot
+            visu_acl: ro
+
+        temperature_limit_last_reboot:
+            type: bool
+            rpiinfo_func: temperature_limit_last_reboot
+            visu_acl: ro
 item_attribute_prefixes: NONE
 
 plugin_functions:
