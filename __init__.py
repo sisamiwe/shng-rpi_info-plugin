@@ -26,13 +26,13 @@
 #########################################################################
 
 from lib.model.smartplugin import SmartPlugin
-from lib.item import Items
 
 from .webif import WebInterface
 
 import subprocess
 from datetime import timedelta
 import lib.cpuinfo
+import threading
 
 
 class RPi_Info(SmartPlugin):
@@ -40,11 +40,11 @@ class RPi_Info(SmartPlugin):
     Main class of the Plugin. Does all plugin specific stuff and provides the update functions for the items
     """
 
-    PLUGIN_VERSION = '1.0.A'
+    PLUGIN_VERSION = '1.0.1'
 
     def __init__(self, sh):
         """
-        Initalizes the plugin.
+        Initializes the plugin.
 
         If you need the sh object at all, use the method self.get_sh() to get it. There should be almost no need for
         a reference to the sh object anymore.
@@ -54,13 +54,13 @@ class RPi_Info(SmartPlugin):
         # Call init code of parent class (SmartPlugin)
         super().__init__()
 
-        self._item_dict = {}
+        self.item_dict = {}
         self._flags_value = None
         self._cpu_info = None
-        self._cyclic_update_active = False
         self._rpi_model = None
         self.suspended = False
         self.alive = False
+        self._lock_poll_device = threading.Lock()
 
         # check if shNG is running on Raspberry Pi
         if not self._is_rpi():
@@ -84,7 +84,6 @@ class RPi_Info(SmartPlugin):
         Run method for the plugin
         """
         self.logger.debug("Run method called")
-        # setup scheduler for device poll loop   (disable the following line, if you don't need to poll the device. Rember to comment the self_cycle statement in __init__ as well)
         self.scheduler_add('poll_device', self.poll_device, cycle=self.poll_cycle)
         self.alive = True
 
@@ -111,7 +110,7 @@ class RPi_Info(SmartPlugin):
         """
         if self.has_iattr(item.conf, 'rpiinfo_func'):
             self.logger.debug(f"parse item: {item}")
-            self._item_dict[item] = self.get_iattr_value(item.conf, 'rpiinfo_func')
+            self.item_dict[item] = self.get_iattr_value(item.conf, 'rpiinfo_func')
 
         elif self.has_iattr(item.conf, 'rpiinfo_sys'):
             return self.update_item
@@ -136,37 +135,33 @@ class RPi_Info(SmartPlugin):
                     self.logger.info(f"Update of all items of RPi_Info Plugin requested. ")
                     self.poll_device()
                     item(False)
-            pass
 
     def poll_device(self):
         """
         Polls for updates of the device
         """
-        # check if another cyclic cmd run is still active
-        if self._cyclic_update_active:
-            self.logger.warning('Triggered cyclic poll_device, but previous cyclic run is still active. Therefore request will be skipped.')
-            return
-        elif self.suspended:
+        # check if plugin ist suspended
+        if self.suspended:
             self.logger.warning('Triggered cyclic poll_device, but Plugin in suspended. Therefore request will be skipped.')
             return
-        else:
+
+        # prevent creation of more than one thread
+        if self._lock_poll_device.acquire(timeout=1):
             self.logger.info('Triggering cyclic poll_device')
 
-        # set lock
-        self._cyclic_update_active = True
+            for item in self.item_dict:
+                # self.logger.debug(f"poll_device: handle item {item.id()}")
+                value = eval(f"self.{self.get_iattr_value(item.conf, 'rpiinfo_func')}()")
+                # self.logger.info(f"poll_device: {value=} for item {item.id()} will be set.")
+                item(value, self.get_shortname())
 
-        for item in self._item_dict:
-            # self.logger.debug(f"poll_device: handle item {item.id()}")
-            value = eval(f"self.{self.get_iattr_value(item.conf, 'rpiinfo_func')}()")
-            # self.logger.info(f"poll_device: {value=} for item {item.id()} will be set.")
-            item(value, self.get_shortname())
+            # Reset flags for next update
+            self._flags_value = None
 
-        # release lock
-        self._cyclic_update_active = False
-
-        # Reset flags for next update
-        self._flags_value = None
-        pass
+            # Release lock
+            self._lock_poll_device.release()
+        else:
+            self.logger.warning('Triggered poll_device, but could not acquire lock. Request will be skipped.')
 
     @staticmethod
     def _call(cmd, arg):
@@ -280,7 +275,7 @@ class RPi_Info(SmartPlugin):
 
     @property
     def item_list(self):
-        return list(self._item_dict.keys())
+        return list(self.item_dict.keys())
 
     def suspend(self, state: bool = False):
         """

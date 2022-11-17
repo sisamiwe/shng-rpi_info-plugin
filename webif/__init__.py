@@ -74,10 +74,11 @@ class WebInterface(SmartPluginWebIf):
             pagelength = self.plugin.webif_pagelength
         except Exception:
             pagelength = 100
+
         # add values to be passed to the Jinja2 template eg: tmpl.render(p=self.plugin, interface=interface, ...)
         return tmpl.render(p=self.plugin,
                            webif_pagelength=pagelength,
-                           items=sorted(self.plugin.item_list, key=lambda k: str.lower(k['_path'])),
+                           items=self.plugin.item_list,
                            item_count=len(self.plugin.item_list),
                            plugin_shortname=self.plugin.get_shortname(),
                            plugin_version=self.plugin.get_version(),
